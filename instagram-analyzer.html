@@ -1,0 +1,745 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FollowTrack — SOCIAL RECON TERMINAL v2.3.1</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=VT323&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --green: #39ff14;
+    --green-dim: #1a7a00;
+    --green-dark: #0d3d00;
+    --green-glow: rgba(57,255,20,0.4);
+    --amber: #ffb000;
+    --red: #ff3c00;
+    --bg: #000800;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { cursor: none; }
+
+  body {
+    background: var(--bg);
+    color: var(--green);
+    font-family: 'Share Tech Mono', monospace;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  .cursor {
+    position: fixed;
+    width: 18px; height: 18px;
+    border: 2px solid var(--green);
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 9999;
+    transform: translate(-50%,-50%);
+    transition: width 0.1s, height 0.1s;
+    box-shadow: 0 0 8px var(--green-glow), inset 0 0 4px var(--green-glow);
+  }
+  .cursor::after {
+    content: '';
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%,-50%);
+    width: 4px; height: 4px;
+    background: var(--green);
+    border-radius: 50%;
+  }
+
+  /* CRT scanlines */
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background: repeating-linear-gradient(0deg, rgba(0,0,0,0.13) 0px, rgba(0,0,0,0.13) 1px, transparent 1px, transparent 3px);
+    pointer-events: none;
+    z-index: 100;
+  }
+
+  /* CRT vignette */
+  body::after {
+    content: '';
+    position: fixed; inset: 0;
+    background: radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,0.9) 100%);
+    pointer-events: none;
+    z-index: 99;
+  }
+
+  .scanline-sweep {
+    position: fixed;
+    left: 0; right: 0; height: 3px;
+    background: linear-gradient(transparent, rgba(57,255,20,0.12), transparent);
+    pointer-events: none;
+    z-index: 101;
+    animation: scanDown 7s linear infinite;
+  }
+
+  @keyframes scanDown { 0% { top: -5%; } 100% { top: 105%; } }
+  @keyframes blink { 0%,49%{opacity:1;} 50%,100%{opacity:0;} }
+  @keyframes powerOn {
+    0%  { opacity:0; transform:scaleY(0.02); filter:brightness(4); }
+    25% { opacity:1; transform:scaleY(1); filter:brightness(2); }
+    100%{ opacity:1; filter:brightness(1); }
+  }
+  @keyframes flicker {
+    0%,95%,100%{opacity:1;} 96%{opacity:0.88;} 97%{opacity:1;} 98.5%{opacity:0.93;}
+  }
+  @keyframes glitch {
+    0%,88%,100%{transform:translateX(0) skewX(0);filter:none;}
+    89%{transform:translateX(-4px) skewX(-1.5deg);filter:hue-rotate(80deg);}
+    90%{transform:translateX(4px) skewX(1deg);}
+    91%{transform:translateX(0);}
+  }
+  @keyframes fadeUp { from{opacity:0;transform:translateY(8px);} to{opacity:1;transform:translateY(0);} }
+  @keyframes loadAnim { 0%{left:-40%;} 100%{left:140%;} }
+  @keyframes pulseBorder {
+    0%,100%{box-shadow:0 0 6px var(--green-glow),inset 0 0 6px rgba(57,255,20,0.04);}
+    50%{box-shadow:0 0 18px var(--green-glow),inset 0 0 14px rgba(57,255,20,0.08);}
+  }
+
+  .terminal-wrapper {
+    animation: powerOn 0.9s ease both, flicker 12s 1.5s infinite;
+    min-height: 100vh;
+    padding: 20px;
+    max-width: 980px;
+    margin: 0 auto;
+  }
+
+  .sys-date {
+    text-align: right;
+    font-size: 10px;
+    color: var(--green-dim);
+    letter-spacing: 0.12em;
+    margin-bottom: 10px;
+  }
+
+  /* Header panel */
+  .boot-header {
+    border: 1px solid var(--green-dim);
+    padding: 18px 22px;
+    margin-bottom: 18px;
+    position: relative;
+    background: rgba(0,18,0,0.6);
+    animation: pulseBorder 5s ease infinite;
+  }
+  .boot-header::before {
+    content: '┌─ MARKS INDUSTRIES (TM) TERMLINK PROTOCOL ─────────────────────────┐';
+    display: block;
+    position: absolute;
+    top: -9px; left: 14px;
+    background: var(--bg);
+    padding: 0 6px;
+    font-size: 10px;
+    color: var(--green-dim);
+    letter-spacing: 0.04em;
+  }
+
+  .sys-title {
+    font-family: 'VT323', monospace;
+    font-size: clamp(30px, 6vw, 56px);
+    color: var(--green);
+    text-shadow: 0 0 18px var(--green-glow), 0 0 36px rgba(57,255,20,0.18);
+    letter-spacing: 0.1em;
+    animation: glitch 9s ease infinite;
+    line-height: 1.1;
+  }
+  .sys-sub {
+    font-size: 11px;
+    color: var(--green-dim);
+    letter-spacing: 0.2em;
+    margin-top: 5px;
+  }
+  .header-stats {
+    display: flex; gap: 24px; margin-top: 10px; flex-wrap: wrap;
+  }
+  .hstat { font-size: 10px; color: var(--green-dim); letter-spacing: 0.1em; }
+  .hstat span { color: var(--amber); }
+
+  /* Boot log */
+  .boot-log { margin-bottom: 18px; }
+  .prompt-line {
+    font-size: 12px;
+    color: var(--green-dim);
+    margin-bottom: 3px;
+    letter-spacing: 0.04em;
+  }
+  .prompt-line::before { content: '> '; color: var(--green); }
+  .blink-cursor {
+    display: inline-block;
+    width: 9px; height: 14px;
+    background: var(--green);
+    animation: blink 1s step-end infinite;
+    vertical-align: middle;
+    margin-left: 2px;
+    box-shadow: 0 0 6px var(--green-glow);
+  }
+
+  /* Generic panel */
+  .panel {
+    border: 1px solid var(--green-dim);
+    margin-bottom: 18px;
+    background: rgba(0,8,0,0.65);
+    position: relative;
+    transition: border-color 0.3s;
+  }
+  .panel:hover { border-color: rgba(57,255,20,0.5); }
+  .panel-title {
+    font-family: 'VT323', monospace;
+    font-size: 20px;
+    padding: 8px 18px;
+    background: var(--green-dark);
+    color: var(--green);
+    letter-spacing: 0.14em;
+    text-shadow: 0 0 10px var(--green-glow);
+    border-bottom: 1px solid var(--green-dim);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .panel-title .sym { color: var(--green-dim); }
+  .panel-body { padding: 16px 18px; }
+
+  /* Corners */
+  .ctop, .cbot {
+    position: absolute; left: 0; right: 0;
+    height: 0;
+  }
+  .ctop::before, .ctop::after, .cbot::before, .cbot::after {
+    content: '';
+    position: absolute;
+    width: 10px; height: 10px;
+    border-color: var(--green);
+  }
+  .ctop { top: -1px; }
+  .ctop::before { top: 0; left: -1px; border-top: 2px solid; border-left: 2px solid; }
+  .ctop::after  { top: 0; right: -1px; border-top: 2px solid; border-right: 2px solid; }
+  .cbot { bottom: -1px; }
+  .cbot::before { bottom: 0; left: -1px; border-bottom: 2px solid; border-left: 2px solid; }
+  .cbot::after  { bottom: 0; right: -1px; border-bottom: 2px solid; border-right: 2px solid; }
+
+  /* Instructions */
+  .instr-list { list-style: none; }
+  .instr-list li {
+    padding: 6px 0;
+    font-size: 12px;
+    color: var(--green-dim);
+    border-bottom: 1px solid rgba(57,255,20,0.06);
+    letter-spacing: 0.04em;
+    line-height: 1.6;
+  }
+  .instr-list li::before { content: '[' attr(data-n) '] '; color: var(--amber); }
+  .instr-list li strong { color: var(--green); }
+  .warning-box {
+    border: 1px solid rgba(255,176,0,0.5);
+    padding: 10px 14px;
+    margin-top: 12px;
+    font-size: 11px;
+    color: var(--amber);
+    letter-spacing: 0.06em;
+    line-height: 1.6;
+    background: rgba(255,176,0,0.03);
+    text-shadow: 0 0 8px rgba(255,176,0,0.3);
+  }
+  .warning-box::before { content: '⚠ WARNING: '; font-weight: bold; }
+
+  /* Upload zones */
+  .upload-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px;
+  }
+  @media(max-width:560px){ .upload-grid{ grid-template-columns:1fr; } }
+
+  .upload-zone {
+    border: 1px dashed var(--green-dim);
+    padding: 30px 16px;
+    text-align: center;
+    cursor: pointer;
+    background: rgba(0,6,0,0.85);
+    position: relative;
+    overflow: hidden;
+    transition: all 0.25s;
+  }
+  .upload-zone::before {
+    content:'';
+    position:absolute;inset:0;
+    background:repeating-linear-gradient(45deg,transparent,transparent 10px,rgba(57,255,20,0.012) 10px,rgba(57,255,20,0.012) 20px);
+  }
+  .upload-zone:hover, .upload-zone.dragover {
+    border-color: var(--green);
+    border-style: solid;
+    box-shadow: 0 0 16px var(--green-glow), inset 0 0 16px rgba(57,255,20,0.04);
+  }
+  .upload-zone.loaded {
+    border-style: solid;
+    border-color: var(--green);
+    background: rgba(0,18,0,0.8);
+  }
+  .uz-icon { font-family:'VT323',monospace; font-size:38px; color:var(--green-dim); display:block; margin-bottom:8px; }
+  .uz-label { font-family:'VT323',monospace; font-size:20px; letter-spacing:0.14em; color:var(--green); text-shadow:0 0 8px var(--green-glow); display:block; }
+  .uz-hint { font-size:10px; color:var(--green-dim); letter-spacing:0.12em; margin-top:4px; display:block; }
+  .uz-status { margin-top:10px; font-size:11px; color:var(--amber); letter-spacing:0.1em; min-height:16px; text-shadow:0 0 8px rgba(255,176,0,0.4); }
+  input[type="file"]{ display:none; }
+
+  /* Loading bar */
+  .loading-bar {
+    display:none; height:3px; background:var(--green-dark); margin:10px 0; position:relative; overflow:hidden;
+  }
+  .loading-bar.active { display:block; }
+  .loading-bar::after {
+    content:''; position:absolute; top:0; left:-40%; width:40%; height:100%;
+    background:linear-gradient(90deg,transparent,var(--green),transparent);
+    animation: loadAnim 0.7s ease infinite;
+  }
+
+  /* Analyze button */
+  .btn-analyze {
+    width:100%;
+    padding:14px;
+    background:transparent;
+    border:1px solid var(--green);
+    color:var(--green);
+    font-family:'VT323',monospace;
+    font-size:26px;
+    letter-spacing:0.18em;
+    cursor:pointer;
+    transition:all 0.2s;
+    position:relative; overflow:hidden;
+    text-shadow:0 0 10px var(--green-glow);
+    box-shadow: 0 0 10px rgba(57,255,20,0.15);
+  }
+  .btn-analyze::before {
+    content:''; position:absolute; top:0; left:-100%; width:100%; height:100%;
+    background:linear-gradient(90deg,transparent,rgba(57,255,20,0.07),transparent);
+    transition:left 0.4s;
+  }
+  .btn-analyze:hover:not(:disabled)::before { left:100%; }
+  .btn-analyze:hover:not(:disabled) {
+    background:rgba(57,255,20,0.07);
+    box-shadow: 0 0 24px var(--green-glow);
+    text-shadow: 0 0 20px var(--green);
+  }
+  .btn-analyze:disabled {
+    opacity:0.3; cursor:not-allowed;
+    color:var(--green-dim); border-color:var(--green-dim);
+    text-shadow:none; box-shadow:none;
+  }
+
+  /* Stats */
+  .stats-row {
+    display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-bottom:16px;
+  }
+  @media(max-width:560px){ .stats-row{ grid-template-columns:1fr; } }
+
+  .stat-box {
+    border:1px solid var(--green-dim);
+    padding:16px 12px;
+    text-align:center;
+    background:rgba(0,6,0,0.85);
+    position:relative;
+    animation: fadeUp 0.4s ease both;
+  }
+  .stat-box::before {
+    content: attr(data-label);
+    position:absolute; top:-9px; left:10px;
+    background:var(--bg); padding:0 6px;
+    font-size:9px; color:var(--green-dim);
+    letter-spacing:0.15em; text-transform:uppercase;
+  }
+  .stat-num {
+    font-family:'VT323',monospace;
+    font-size:52px; line-height:1;
+    display:block; text-shadow:0 0 20px currentColor;
+    animation: glitch 14s ease infinite;
+  }
+  .stat-box.danger .stat-num { color:var(--red); }
+  .stat-box.ok .stat-num { color:var(--green); }
+  .stat-box.warn .stat-num { color:var(--amber); }
+
+  /* Tabs */
+  .tab-bar {
+    display:flex; border-bottom:1px solid var(--green-dim); margin-bottom:14px; flex-wrap:wrap;
+  }
+  .t-tab {
+    padding:8px 18px;
+    font-family:'VT323',monospace; font-size:19px;
+    letter-spacing:0.1em;
+    color:var(--green-dim);
+    cursor:pointer;
+    border:1px solid transparent; border-bottom:none;
+    background:none;
+    transition:all 0.2s;
+    position:relative; bottom:-1px;
+  }
+  .t-tab:hover { color:var(--green); }
+  .t-tab.active {
+    color:var(--green);
+    border-color:var(--green-dim);
+    background:rgba(0,20,0,0.85);
+    text-shadow:0 0 10px var(--green-glow);
+  }
+
+  /* Search */
+  .search-input {
+    width:100%;
+    background:rgba(0,6,0,0.9);
+    border:1px solid var(--green-dim);
+    color:var(--green);
+    font-family:'Share Tech Mono',monospace;
+    font-size:12px;
+    padding:8px 12px;
+    outline:none;
+    margin-bottom:10px;
+    letter-spacing:0.05em;
+    transition:border-color 0.2s;
+  }
+  .search-input:focus { border-color:var(--green); box-shadow:0 0 8px var(--green-glow); }
+  .search-input::placeholder { color:var(--green-dim); }
+
+  /* User list */
+  .user-list {
+    max-height:300px; overflow-y:auto;
+    border:1px solid var(--green-dark);
+  }
+  .user-list::-webkit-scrollbar { width:5px; }
+  .user-list::-webkit-scrollbar-track { background:var(--bg); }
+  .user-list::-webkit-scrollbar-thumb { background:var(--green-dim); }
+
+  .user-row {
+    display:flex; align-items:center; justify-content:space-between;
+    padding:9px 14px;
+    border-bottom:1px solid var(--green-dark);
+    transition:background 0.15s;
+    animation: fadeUp 0.3s ease both;
+    font-size:12px;
+  }
+  .user-row:last-child { border-bottom:none; }
+  .user-row:hover { background:rgba(57,255,20,0.035); }
+  .u-idx { color:var(--green-dim); width:36px; font-size:10px; flex-shrink:0; }
+  .u-handle { flex:1; letter-spacing:0.03em; }
+  .u-handle::before { content:'> '; color:var(--green-dim); }
+  .u-link {
+    font-family:'VT323',monospace; font-size:16px;
+    color:var(--amber); text-decoration:none;
+    letter-spacing:0.1em;
+    border:1px solid rgba(255,176,0,0.3);
+    padding:2px 10px;
+    transition:all 0.2s;
+    text-shadow:0 0 6px rgba(255,176,0,0.35);
+  }
+  .u-link:hover {
+    background:rgba(255,176,0,0.08);
+    border-color:var(--amber);
+    box-shadow:0 0 12px rgba(255,176,0,0.3);
+  }
+
+  .empty-msg {
+    text-align:center; padding:32px;
+    color:var(--green-dim);
+    font-family:'VT323',monospace; font-size:22px; letter-spacing:0.1em;
+  }
+
+  .results-panel { display:none; }
+  .results-panel.visible { display:block; animation:fadeUp 0.5s ease both; }
+
+  .footer {
+    text-align:center; padding:22px 0;
+    font-size:10px; color:var(--green-dark);
+    letter-spacing:0.15em; line-height:1.8;
+  }
+</style>
+</head>
+<body>
+
+<div class="cursor" id="cursor"></div>
+<div class="scanline-sweep"></div>
+
+<div class="terminal-wrapper">
+
+  <div class="sys-date" id="sysdate"></div>
+
+  <!-- HEADER -->
+  <div class="boot-header">
+    <div class="sys-title">FollowTrack v2.3.1</div>
+    <div class="sys-sub">// SOCIAL NETWORK RECONNAISSANCE TERMINAL — AUTHORIZED USE ONLY //</div>
+    <div class="header-stats">
+      <div class="hstat">USER: <span>VAULT_DWELLER</span></div>
+      <div class="hstat">CLEARANCE: <span>LEVEL 5</span></div>
+      <div class="hstat">STATUS: <span id="sys-status">AWAITING INPUT</span></div>
+      <div class="hstat">UPTIME: <span id="uptime">00:00:00</span></div>
+    </div>
+  </div>
+
+  <!-- Boot log -->
+  <div class="boot-log">
+    <div class="prompt-line">INITIALIZING SOCIAL RECON MODULE v2.3.1...</div>
+    <div class="prompt-line">LOADING FOLLOWER ANALYSIS ENGINE............... [OK]</div>
+    <div class="prompt-line">CRYPTOGRAPHIC SECURITY HANDSHAKE............... [OK]</div>
+    <div class="prompt-line">LOCAL-ONLY PROCESSING MODE ENABLED............. [OK]</div>
+    <div class="prompt-line">SYSTEM READY. AWAITING DATA UPLOAD. <span class="blink-cursor"></span></div>
+  </div>
+
+  <!-- INSTRUCTIONS -->
+  <div class="panel">
+    <div class="ctop"></div><div class="cbot"></div>
+    <div class="panel-title"><span class="sym">◈</span> DATA ACQUISITION PROTOCOL — READ BEFORE PROCEEDING</div>
+    <div class="panel-body">
+      <ul class="instr-list">
+        <li data-n="01">No Instagram: <strong>Configurações → Centro de Contas → Suas informações e permissões</strong></li>
+        <li data-n="02">Acessar <strong>Baixar suas informações</strong> — selecionar formato <strong>JSON</strong></li>
+        <li data-n="03">Aguardar transmissão por e-mail e extrair arquivo <strong>.ZIP</strong></li>
+        <li data-n="04">Localizar pasta <strong>connections/followers_and_following/</strong> e injetar arquivos abaixo</li>
+      </ul>
+      <div class="warning-box">
+        TODOS OS DADOS SÃO PROCESSADOS LOCALMENTE NESTE TERMINAL. ZERO TRANSMISSÃO PARA SERVIDORES EXTERNOS. OPERAÇÃO 100% SEGURA.
+      </div>
+    </div>
+  </div>
+
+  <!-- FILE UPLOAD -->
+  <div class="panel">
+    <div class="ctop"></div><div class="cbot"></div>
+    <div class="panel-title"><span class="sym">◈</span> DATA UPLINK — INJECT FILES INTO TERMINAL</div>
+    <div class="panel-body">
+      <div class="upload-grid">
+
+        <div class="upload-zone" id="zone-followers"
+          onclick="document.getElementById('inp-followers').click()"
+          ondragover="onDragOver(event,'zone-followers')"
+          ondragleave="onDragLeave('zone-followers')"
+          ondrop="onDrop(event,'followers')">
+          <input type="file" id="inp-followers" accept=".json" onchange="loadFile('followers',this)">
+          <span class="uz-icon">[👥]</span>
+          <span class="uz-label">FOLLOWERS_1.JSON</span>
+          <span class="uz-hint">// quem te segue</span>
+          <div class="uz-status" id="st-followers"></div>
+        </div>
+
+        <div class="upload-zone" id="zone-following"
+          onclick="document.getElementById('inp-following').click()"
+          ondragover="onDragOver(event,'zone-following')"
+          ondragleave="onDragLeave('zone-following')"
+          ondrop="onDrop(event,'following')">
+          <input type="file" id="inp-following" accept=".json" onchange="loadFile('following',this)">
+          <span class="uz-icon">[➡]</span>
+          <span class="uz-label">FOLLOWING.JSON</span>
+          <span class="uz-hint">// quem você segue</span>
+          <div class="uz-status" id="st-following"></div>
+        </div>
+
+      </div>
+      <div class="loading-bar" id="load-bar"></div>
+      <button class="btn-analyze" id="btn-analyze" onclick="analyze()" disabled>
+        ◆ &nbsp; INICIAR ANÁLISE — EXECUTE RECON &nbsp; ◆
+      </button>
+    </div>
+  </div>
+
+  <!-- RESULTS -->
+  <div class="results-panel" id="results">
+
+    <div class="panel">
+      <div class="ctop"></div><div class="cbot"></div>
+      <div class="panel-title"><span class="sym">◈</span> RECON REPORT — STATISTICAL SUMMARY</div>
+      <div class="panel-body">
+        <div class="stats-row" id="stats-row"></div>
+        <div id="log-lines"></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="ctop"></div><div class="cbot"></div>
+      <div class="panel-title"><span class="sym">◈</span> SUBJECT DATABASE — QUERY RESULTS</div>
+      <div class="panel-body">
+        <div class="tab-bar">
+          <button class="t-tab active" onclick="switchTab('nfb',this)">// NÃO TE SEGUEM</button>
+          <button class="t-tab" onclick="switchTab('nfob',this)">// NÃO SEGUIDOS</button>
+          <button class="t-tab" onclick="switchTab('mut',this)">// MÚTUOS</button>
+        </div>
+
+        <div id="pane-nfb">
+          <input class="search-input" type="text" placeholder="> BUSCAR ALVO... _" oninput="filterList('list-nfb',this.value,'nfb')">
+          <div class="user-list" id="list-nfb"></div>
+        </div>
+        <div id="pane-nfob" style="display:none">
+          <input class="search-input" type="text" placeholder="> BUSCAR ALVO... _" oninput="filterList('list-nfob',this.value,'nfob')">
+          <div class="user-list" id="list-nfob"></div>
+        </div>
+        <div id="pane-mut" style="display:none">
+          <input class="search-input" type="text" placeholder="> BUSCAR ALVO... _" oninput="filterList('list-mut',this.value,'mut')">
+          <div class="user-list" id="list-mut"></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="footer">
+    M.A.R.K.S INDUSTRIES (TM) TERMLINK PROTOCOL — ALL RIGHTS RESERVED<br>
+    WARNING: UNAUTHORIZED ACCESS IS A FEDERAL CRIME UNDER THE COMPUTER FRAUD AND ABUSE ACT OF 2077
+  </div>
+
+</div>
+
+<script>
+  // Cursor
+  const cur = document.getElementById('cursor');
+  document.addEventListener('mousemove', e => {
+    cur.style.left = e.clientX + 'px';
+    cur.style.top = e.clientY + 'px';
+  });
+  document.addEventListener('mousedown', () => { cur.style.width='12px'; cur.style.height='12px'; });
+  document.addEventListener('mouseup', () => { cur.style.width='18px'; cur.style.height='18px'; });
+
+  // Uptime clock
+  const t0 = Date.now();
+  setInterval(() => {
+    const s = Math.floor((Date.now()-t0)/1000);
+    const h = String(Math.floor(s/3600)).padStart(2,'0');
+    const m = String(Math.floor((s%3600)/60)).padStart(2,'0');
+    const sc = String(s%60).padStart(2,'0');
+    document.getElementById('uptime').textContent = `${h}:${m}:${sc}`;
+  }, 1000);
+
+  // Date
+  const now = new Date();
+  document.getElementById('sysdate').textContent =
+    `SYSTEM DATE: ${now.toLocaleDateString('pt-BR')}  ${now.toLocaleTimeString('pt-BR')} — TERMINAL ONLINE`;
+
+  // State
+  let data = { followers: null, following: null };
+  let stored = {};
+
+  // Drag events
+  function onDragOver(e, id) { e.preventDefault(); document.getElementById(id).classList.add('dragover'); }
+  function onDragLeave(id) { document.getElementById(id).classList.remove('dragover'); }
+  function onDrop(e, type) {
+    e.preventDefault();
+    onDragLeave('zone-'+type);
+    const f = e.dataTransfer.files[0];
+    if (f) processFile(type, f);
+  }
+
+  function loadFile(type, input) {
+    if (input.files[0]) processFile(type, input.files[0]);
+  }
+
+  function processFile(type, file) {
+    document.getElementById('load-bar').classList.add('active');
+    const reader = new FileReader();
+    reader.onload = e => {
+      try {
+        const json = JSON.parse(e.target.result);
+        const users = extract(json);
+        data[type] = users;
+        document.getElementById('st-'+type).textContent = `[LOADED] ${users.length} RECORDS INJECTED`;
+        document.getElementById('zone-'+type).classList.add('loaded');
+        document.getElementById('sys-status').textContent = 'DATA RECEIVED';
+        if (data.followers && data.following) {
+          document.getElementById('btn-analyze').disabled = false;
+          document.getElementById('sys-status').textContent = 'READY TO EXECUTE RECON';
+        }
+      } catch(err) {
+        alert('SYSTEM ERROR: Arquivo JSON inválido ou corrompido. Verifique o arquivo.');
+      }
+      document.getElementById('load-bar').classList.remove('active');
+    };
+    reader.readAsText(file);
+  }
+
+  function extract(json) {
+    const out = [];
+    const push = item => {
+      if (item?.string_list_data) item.string_list_data.forEach(d => { if(d.value) out.push(d.value); });
+      else if (item?.value) out.push(item.value);
+    };
+    if (Array.isArray(json)) { json.forEach(push); }
+    else if (json.relationships_following) { json.relationships_following.forEach(push); }
+    else { Object.values(json).forEach(v => { if(Array.isArray(v)) v.forEach(push); }); }
+    return [...new Set(out)];
+  }
+
+  function analyze() {
+    const bar = document.getElementById('load-bar');
+    bar.classList.add('active');
+    document.getElementById('sys-status').textContent = 'PROCESSING...';
+    document.getElementById('btn-analyze').disabled = true;
+
+    setTimeout(() => {
+      const fwrs = new Set(data.followers);
+      const fwing = new Set(data.following);
+
+      const nfb  = data.following.filter(u => !fwrs.has(u));
+      const nfob = data.followers.filter(u => !fwing.has(u));
+      const mut  = data.followers.filter(u => fwing.has(u));
+
+      stored = { nfb, nfob, mut };
+
+      document.getElementById('stats-row').innerHTML = `
+        <div class="stat-box danger" data-label="NÃO TE SEGUEM DE VOLTA">
+          <span class="stat-num">${nfb.length}</span>
+        </div>
+        <div class="stat-box ok" data-label="SEGUIDORES MÚTUOS">
+          <span class="stat-num">${mut.length}</span>
+        </div>
+        <div class="stat-box warn" data-label="VOCÊ NÃO SEGUE DE VOLTA">
+          <span class="stat-num">${nfob.length}</span>
+        </div>
+      `;
+
+      const threat = nfb.length > 50 ? 'HIGH' : nfb.length > 20 ? 'MEDIUM' : 'LOW';
+      document.getElementById('log-lines').innerHTML = `
+        <div class="prompt-line">ANÁLISE CONCLUÍDA. ${data.followers.length} SEGUIDORES / ${data.following.length} SEGUINDO PROCESSADOS.</div>
+        <div class="prompt-line">DETECTADOS ${nfb.length} ALVOS NÃO-RECÍPROCOS. THREAT LEVEL: ${threat}.</div>
+        <div class="prompt-line">RECON COMPLETE. RESULTS STORED IN LOCAL BUFFER. <span class="blink-cursor"></span></div>
+      `;
+
+      renderList('list-nfb', nfb);
+      renderList('list-nfob', nfob);
+      renderList('list-mut', mut);
+
+      bar.classList.remove('active');
+      document.getElementById('sys-status').textContent = 'RECON COMPLETE';
+      document.getElementById('btn-analyze').disabled = false;
+      document.getElementById('results').classList.add('visible');
+      document.getElementById('results').scrollIntoView({ behavior:'smooth' });
+    }, 1000);
+  }
+
+  function renderList(id, users) {
+    const el = document.getElementById(id);
+    if (!users.length) {
+      el.innerHTML = '<div class="empty-msg">// NO RECORDS FOUND IN DATABASE //</div>';
+      el.dataset.users = '[]';
+      return;
+    }
+    el.innerHTML = users.map((u, i) => `
+      <div class="user-row" style="animation-delay:${Math.min(i*0.015,0.6)}s">
+        <span class="u-idx">${String(i+1).padStart(3,'0')}</span>
+        <span class="u-handle">${esc(u)}</span>
+        <a class="u-link" href="https://instagram.com/${encodeURIComponent(u)}" target="_blank" rel="noopener">OPEN_FILE</a>
+      </div>
+    `).join('');
+    el.dataset.users = JSON.stringify(users);
+  }
+
+  function filterList(id, q) {
+    const el = document.getElementById(id);
+    const all = JSON.parse(el.dataset.users || '[]');
+    const term = q.toLowerCase().replace('@','');
+    const saved = el.dataset.users;
+    renderList(id, all.filter(u => u.toLowerCase().includes(term)));
+    el.dataset.users = saved;
+  }
+
+  const panes = { nfb:'pane-nfb', nfob:'pane-nfob', mut:'pane-mut' };
+  function switchTab(key, btn) {
+    Object.values(panes).forEach(p => document.getElementById(p).style.display='none');
+    document.getElementById(panes[key]).style.display = 'block';
+    document.querySelectorAll('.t-tab').forEach(t => t.classList.remove('active'));
+    btn.classList.add('active');
+  }
+
+  function esc(s) {
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+</script>
+</body>
+</html>
